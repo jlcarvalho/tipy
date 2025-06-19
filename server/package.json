@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "mastra dev"
+    "dev": "mastra dev",
+    "populate-store": "tsx src/stores/tipy.ts"
   },
   "keywords": [],
   "author": "",
@@ -23,10 +24,12 @@
     "@types/turndown": "^5.0.5",
     "ai": "^4.3.16",
     "dotenv": "^16.5.0",
+    "lodash": "^4.17.21",
     "turndown": "^7.2.0",
     "zod": "^3.25.23"
   },
   "devDependencies": {
+    "@types/lodash": "^4.17.18",
     "@types/node": "^22.15.21",
     "mastra": "^0.10.0",
     "tsx": "^4.19.4",

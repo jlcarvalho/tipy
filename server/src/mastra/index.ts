@@ -44,6 +44,16 @@ export const mastra = new Mastra({
   },
   storage: pgStorage,
   server: {
+    middleware: [
+      async (c, next) => {
+        const userId = c.req.header("X-User-ID");
+        const runtimeContext = c.get("runtimeContext");
+
+        runtimeContext.set("user-id", userId || "");
+
+        await next();
+      },
+    ],
     cors: {
       origin: ["http://localhost:5173"],
       allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],

@@ -6,3 +6,4 @@ dist
 .env
 *.db
 .history/
+.DS_Store

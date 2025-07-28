@@ -3,7 +3,7 @@ import { z } from "zod";
 import { api } from "../../../libs/axios";
 import { ISearchUserResponse } from "./types";
 import { outputSchema } from "./outputSchema";
-import isNull from "lodash/isNull";
+import isNull from "lodash/isNull.js";
 
 const getUserData = async (userId: string) => {
   console.log(`Fetching last coupons for ${userId}...`);

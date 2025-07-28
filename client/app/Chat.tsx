@@ -1,3 +1,4 @@
+"use client";
 import "./app.css";
 import "@copilotkit/react-ui/styles.css";
 
@@ -23,7 +24,6 @@ import {
 
 import { CopilotKit } from "@copilotkit/react-core";
 import type { Route } from "./+types/root";
-import { Chat } from "./Chat";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -76,75 +76,24 @@ const CustomSuggestionsList = ({
   );
 };
 
-export function Layout({ children }: { children: React.ReactNode }) {
-  // Generate a simple JWT-like token for now (in production, you'd want proper JWT)
-  const userId = "camilasavia@gmail.com";
-  const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = btoa(
-    JSON.stringify({
-      userId,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour
-    })
-  );
-  const signature = btoa("signature-placeholder"); // In production, use proper HMAC
-  const token = `${header}.${payload}.${signature}`;
-
+export function Chat({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <Meta />
-        <Links />
-      </head>
-      <body>
-        <CopilotKit
-          runtimeUrl="http://localhost:4111/copilotkit"
-          agent="tipyAgent"
-          headers={{
-            Authorization: `Bearer ${token}`,
-          }}
-          showDevConsole={import.meta.env.DEV}
-        >
-          <Chat>{children}</Chat>
-        </CopilotKit>
-        <ScrollRestoration />
-        <Scripts />
-      </body>
-    </html>
-  );
-}
+    <>
+      {children}
 
-export default function App() {
-  return <Outlet />;
-}
-
-export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
-  let stack: string | undefined;
-
-  if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
-  }
-
-  return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
-    </main>
+      <CopilotPopup
+        Header={Header}
+        markdownTagRenderers={{
+          code: ({ children, ...rest }) => <span {...rest}>${children}$</span>,
+        }}
+        labels={{
+          initial: "Hello! How can I help you today?",
+          title: "Tipy",
+          placeholder: "Ask me anything!",
+          stopGenerating: "Stop",
+          regenerateResponse: "Regenerate",
+        }}
+      />
+    </>
   );
 }

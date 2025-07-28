@@ -13,3 +13,11 @@ body {
     color-scheme: dark;
   }
 }
+
+.copilotKitInput {
+  margin-bottom: 10px !important;
+}
+
+.copilotKitInput + div {
+  display: none;
+}

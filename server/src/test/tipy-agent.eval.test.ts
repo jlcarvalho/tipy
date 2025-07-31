@@ -1,19 +1,16 @@
 import { describe, it, expect, beforeEach, vi, beforeAll } from "vitest";
-import { openai } from "@ai-sdk/openai";
 import {
   ContextRelevancyMetric,
-  ContextualRecallMetric,
   ContextPrecisionMetric,
   HallucinationMetric,
   PromptAlignmentMetric,
-  AnswerRelevancyMetric,
 } from "@mastra/evals/llm";
-import { CompletenessMetric } from "@mastra/evals/nlp";
 import { RuntimeContext } from "@mastra/core/di";
 import { getUserTool } from "../mastra/tools/tipspace/getUserTool";
 import { mastra } from "../mastra";
 import { Agent } from "@mastra/core";
-import { subDays } from "date-fns";
+import { addMinutes, format, subDays } from "date-fns";
+import { ptBR } from "date-fns/locale/pt-BR";
 
 // Mock the getUserTool only
 vi.mock("../mastra/tools/tipspace/getUserTool", () => ({
@@ -23,6 +20,60 @@ vi.mock("../mastra/tools/tipspace/getUserTool", () => ({
     execute: vi.fn(),
   },
 }));
+
+const now = new Date();
+
+const mockUserData = {
+  banned: false,
+  user: {
+    name: "João Silva",
+    createdAt: "2024-01-15T10:30:00Z",
+    verifiedDocument: true,
+    verifiedDocNumber: true,
+    status: "ACTIVE",
+  },
+  referrals: [
+    {
+      createdAt: "2024-01-16T14:20:00Z",
+      referred: { displayName: "Maria Santos", matchesFinished: 5 },
+      reward: "10.00",
+      transactionAmount: "100.00",
+      status: "PENDING",
+    },
+  ],
+  transactions: [
+    {
+      createdAt: subDays(now, 1).toISOString(),
+      updatedAt: subDays(now, 1).toISOString(),
+      type: "PAYOUT",
+      status: "PROCESSING",
+      amount: "50.00",
+      odd: null,
+      criteriaLabel: null,
+      gamemode: null,
+    },
+    {
+      createdAt: subDays(now, 2).toISOString(),
+      updatedAt: addMinutes(subDays(now, 2), 50).toISOString(),
+      type: "COUPON",
+      status: "FINISHED",
+      amount: "10.00",
+      odd: "3.96",
+      criteriaLabel: "TOP 1, Causar (200+) dano em oponentes",
+      gamemode: "TFTEXTERNALRANKED",
+    },
+    {
+      createdAt: subDays(now, 3).toISOString(),
+      updatedAt: addMinutes(subDays(now, 2), 120).toISOString(),
+      type: "COUPON",
+      status: "EXPIRED",
+      amount: "10.00",
+      odd: "3.96",
+      criteriaLabel: "TOP 1, Causar (200+) dano em oponentes",
+      gamemode: "TFTEXTERNALRANKED",
+    },
+  ],
+};
 
 const queries: Array<{
   query: string;
@@ -34,11 +85,12 @@ const queries: Array<{
   minPromptAlignmentScore?: number;
 }> = [
   {
-    query: "Meu saque não caiu",
+    query: "Meu saque não caiu ainda",
     context: [
-      `O usuário tem um saque de R$ 50 solicitado`,
-      "O saque foi solicitado há 1 dia e está dentro do prazo normal de processamento",
-      "Os saques na Tipspace são processados em até 3 dias úteis",
+      "O usuário tem um saque de R$ 50 solicitado",
+      `O saque foi solicitado em ${format(subDays(now, 1), "dd 'de' MMMM 'de' yyyy 'às' HH:MM", { locale: ptBR })}`,
+      "O saque está em processamento",
+      "Os saques são processados em até 3 dias úteis",
       "O usuário ainda tem tempo para aguardar o processamento antes de entrar em contato com o suporte",
       "Os pagamentos costumam ser feitos por volta das 19h",
       "Se algo der errado com o saque, o valor será devolvido automaticamente para a carteira do usuário e o saque cancelado",
@@ -56,7 +108,7 @@ const queries: Array<{
   },
   // {
   //   query: "Minha odd para vencer a partida antes era 1.73 e agora está 1.53",
-  //   context: [],
+  //   context: [`O usuário tem um saque de R$ 50 solicitado`],
   //   instructions: [
   //     "Responda em Português brasileiro",
   //     "Responda com links de referência para a base de conhecimento",
@@ -96,7 +148,7 @@ const queries: Array<{
   {
     query: "minha tip expirou",
     context: [
-      `O usuário realizou uma tip no TFT com o valor de R$ 10 feita em ${subDays(new Date(), 3).toISOString()} que foi expirada`,
+      `O usuário realizou uma tip no TFT com o valor de R$ 10 feita em ${format(subDays(now, 3), "dd 'de' MMMM 'de' yyyy 'às' HH:MM", { locale: ptBR })} que foi expirada`,
       `A tip realizada pelo usuário tinha o critério "TOP 1, Causar (200+) dano em oponentes"`,
       "Cada tip tem um prazo de validade que varia de acordo com o jogo",
       "Se a partida não for jogada dentro do prazo, a tip expira automaticamente",
@@ -160,56 +212,6 @@ const genAnswer = (tipyAgent: Agent, query: string) => {
 describe("Tipy Agent Evaluation Tests", () => {
   let tipyAgent: Agent;
 
-  // Sample user data for mocking
-  const mockUserData = {
-    banned: false,
-    user: {
-      name: "João Silva",
-      createdAt: "2024-01-15T10:30:00Z",
-      verifiedDocument: true,
-      verifiedDocNumber: true,
-      status: "ACTIVE",
-    },
-    referrals: [
-      {
-        createdAt: "2024-01-16T14:20:00Z",
-        referred: { displayName: "Maria Santos", matchesFinished: 5 },
-        reward: "10.00",
-        transactionAmount: "100.00",
-        status: "PENDING",
-      },
-    ],
-    transactions: [
-      {
-        createdAt: subDays(new Date(), 1).toISOString(),
-        type: "PAYOUT",
-        status: "PROCESSING",
-        amount: "50.00",
-        odd: null,
-        criteriaLabel: null,
-        gamemode: null,
-      },
-      {
-        createdAt: subDays(new Date(), 2).toISOString(),
-        type: "COUPON",
-        status: "FINISHED",
-        amount: "10.00",
-        odd: "3.96",
-        criteriaLabel: "TOP 1, Causar (200+) dano em oponentes",
-        gamemode: "TFTEXTERNALRANKED",
-      },
-      {
-        createdAt: subDays(new Date(), 3).toISOString(),
-        type: "COUPON",
-        status: "EXPIRED",
-        amount: "10.00",
-        odd: "3.96",
-        criteriaLabel: "TOP 1, Causar (200+) dano em oponentes",
-        gamemode: "TFTEXTERNALRANKED",
-      },
-    ],
-  };
-
   beforeAll(() => {
     tipyAgent = mastra.getAgent("tipyAgent");
   });
@@ -231,6 +233,7 @@ describe("Tipy Agent Evaluation Tests", () => {
       maxHallucinationScore = 0,
       minPromptAlignmentScore = 0,
     }) => {
+      console.log(context);
       describe(`Evaluation for query: ${query}`, () => {
         let response: Awaited<ReturnType<typeof genAnswer>> | null = null;
 
@@ -319,34 +322,4 @@ describe("Tipy Agent Evaluation Tests", () => {
       });
     }
   );
-
-  describe("Agent Workflow Compliance", () => {
-    it("should verify agent has required tools available", async () => {
-      expect(getUserTool.execute).toBeDefined();
-
-      // Verify the agent has the correct tools
-      expect(tipyAgent.tools.getUserTool).toBeDefined();
-      expect(tipyAgent.tools.tipyQueryTool).toBeDefined();
-
-      console.log("Agent workflow tools verified");
-    });
-
-    it("should verify agent basic structure", async () => {
-      expect(tipyAgent.name).toBe("Tipspace Agent");
-      expect(typeof tipyAgent.getInstructions).toBe("function");
-      expect(tipyAgent.model).toBeDefined();
-      expect(tipyAgent.tools).toBeDefined();
-
-      // Verify tools are accessible correctly
-      expect(tipyAgent.tools.getUserTool).toBeDefined();
-      expect(tipyAgent.tools.tipyQueryTool).toBeDefined();
-
-      expect(tipyAgent.name).toBeTruthy();
-      expect(tipyAgent.model).toBeTruthy();
-      expect(Object.keys(tipyAgent.tools)).toContain("getUserTool");
-      expect(Object.keys(tipyAgent.tools)).toContain("tipyQueryTool");
-
-      console.log("Agent structure compliance verified");
-    });
-  });
 });

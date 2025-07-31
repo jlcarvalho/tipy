@@ -26,6 +26,7 @@ export const outputSchema = z.object({
   transactions: z.array(
     z.object({
       createdAt: z.string(),
+      updatedAt: z.string(),
       type: z.string(),
       status: z.string(),
       amount: z.string(),

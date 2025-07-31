@@ -33,6 +33,7 @@ const getUserData = async (userId: string) => {
     transactions: data.transactions.map(
       ({
         createdAt,
+        updatedAt,
         type,
         status,
         amount,
@@ -41,6 +42,7 @@ const getUserData = async (userId: string) => {
         coupon,
       }) => ({
         createdAt,
+        updatedAt,
         type,
         status:
           status === "FINISHED" &&

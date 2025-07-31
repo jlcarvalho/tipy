@@ -11,9 +11,6 @@ import { PostgresStore } from "@mastra/pg";
 import { registerApiRoute } from "@mastra/core/server";
 import { tipyAgent } from "./agents/tipyAgent";
 import { tftAgent } from "./agents/tftAgent";
-import { userDataAnalystAgent } from "./agents/userDataAnalystAgent";
-import { withdrawalSpecialistAgent } from "./agents/withdrawalSpecialistAgent";
-import { knowledgeRetrievalAgent } from "./agents/knowledgeRetrievalAgent";
 import jwt from "jsonwebtoken";
 
 const pgVector = new PgVector({
@@ -42,9 +39,6 @@ export const mastra = new Mastra({
   agents: {
     tipyAgent,
     tftAgent,
-    userDataAnalystAgent,
-    withdrawalSpecialistAgent,
-    knowledgeRetrievalAgent,
   },
   vectors: {
     pgVector,

@@ -1,88 +1,173 @@
 import { createTool } from "@mastra/core";
-import { Agent } from "@mastra/core";
 import { z } from "zod";
-import { openai } from "@ai-sdk/openai";
 import { getUserTool } from "../tipspace/getUserTool";
 
-const userDataAnalystAgent = new Agent({
-  name: "User Data Analyst",
-  instructions: `# ANALISTA DE DADOS DE USUÁRIO
+// Função auxiliar para formatar datas
+const formatDate = (dateString: string): string => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const day = date.getDate();
+  const month = date.toLocaleString("pt-BR", { month: "long" });
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  return `${day} de ${month} de ${year} às ${hours}:${minutes}`;
+};
 
-Você é especialista em análise de dados de usuários da Tipspace. Sua função é analisar dados do usuário ESPECIFICAMENTE relacionados ao problema/questão mencionada.
+// Função para analisar dados do usuário baseado na query
+const analyzeUserData = (
+  userData: any,
+  userQuery: string
+): {
+  issueSpecificAnalysis: string;
+  relevantFindings: string[];
+  potentialCauses: string[];
+  contextForKnowledge: string;
+} => {
+  const queryLower = userQuery.toLowerCase();
+  const findings: string[] = [];
+  const causes: string[] = [];
+  let analysis = "";
+  let context = "";
 
-## 📋 RESPONSABILIDADES PRINCIPAIS:
-1. **Recuperar dados do usuário** usando getUserTool
-2. **Analisar APENAS aspectos relevantes** para a questão específica do usuário
-3. **Gerar relatório focado** com insights diretamente relacionados ao problema
+  // Análise para problemas de CONTA/VERIFICAÇÃO
+  if (
+    queryLower.includes("verific") ||
+    queryLower.includes("documento") ||
+    queryLower.includes("conta") ||
+    queryLower.includes("ban") ||
+    queryLower.includes("banimento")
+  ) {
+    findings.push(`Status da conta: ${userData.user.status || "N/A"}`);
+    findings.push(
+      `Documento verificado: ${userData.user.verifiedDocument ? "Sim" : "Não"}`
+    );
+    findings.push(
+      `Número do documento verificado: ${userData.user.verifiedDocNumber ? "Sim" : "Não"}`
+    );
+    if (userData.user.createdAt) {
+      findings.push(`Conta criada em: ${formatDate(userData.user.createdAt)}`);
+    }
+    if (userData.banned) {
+      causes.push("Conta banida");
+      analysis =
+        "Conta está banida. Verificação de documentos pode estar relacionada ao banimento.";
+    } else if (!userData.user.verifiedDocument) {
+      causes.push("Documento não verificado");
+      analysis =
+        "Documento não foi verificado ainda. Usuário precisa completar verificação.";
+    }
+    context = `Conta ${userData.user.status}, documento ${userData.user.verifiedDocument ? "verificado" : "não verificado"}`;
+  }
 
-## 🔍 ANÁLISE DIRECIONADA:
+  // Análise para problemas de SAQUE/PAGAMENTO
+  if (
+    queryLower.includes("saque") ||
+    queryLower.includes("payout") ||
+    queryLower.includes("retirar") ||
+    queryLower.includes("dinheiro")
+  ) {
+    const payouts = userData.transactions.filter(
+      (t: any) => t.type === "PAYOUT"
+    );
+    if (payouts.length > 0) {
+      const processingPayouts = payouts.filter(
+        (t: any) => t.status === "PROCESSING"
+      );
+      findings.push(`Total de saques: ${payouts.length}`);
+      findings.push(`Saques em processamento: ${processingPayouts.length}`);
+      processingPayouts.forEach((payout: any) => {
+        findings.push(
+          `Saque de R$ ${payout.amount} criado em ${formatDate(payout.createdAt)} - Status: ${payout.status}`
+        );
+      });
+      if (processingPayouts.length > 0) {
+        analysis = `Existem ${processingPayouts.length} saque(s) em processamento.`;
+        context = `Saque(s) em processamento: ${processingPayouts.map((p: any) => `R$ ${p.amount} desde ${formatDate(p.createdAt)}`).join(", ")}`;
+      }
+    } else {
+      findings.push("Nenhum saque encontrado");
+      analysis = "Usuário não possui histórico de saques.";
+    }
+  }
 
-Baseado na questão do usuário, analise SOMENTE os aspectos relevantes:
+  // Análise para problemas de TIPS/APOSTAS
+  if (
+    queryLower.includes("tip") ||
+    queryLower.includes("aposta") ||
+    queryLower.includes("coupon") ||
+    queryLower.includes("jogo") ||
+    queryLower.includes("match")
+  ) {
+    const tips = userData.transactions.filter((t: any) => t.type === "COUPON");
+    if (tips.length > 0) {
+      const recentTips = tips.slice(0, 5);
+      findings.push(`Total de tips: ${tips.length}`);
+      findings.push(`Tips recentes analisadas: ${recentTips.length}`);
+      recentTips.forEach((tip: any) => {
+        const status =
+          tip.status === "FINISHED" && !tip.odd ? "EXPIRED" : tip.status;
+        findings.push(
+          `Tip de R$ ${tip.amount} em ${tip.gamemode || "N/A"} - Status: ${status} - Criada em ${formatDate(tip.createdAt)}`
+        );
+      });
+      const expiredTips = tips.filter(
+        (t: any) => t.status === "FINISHED" && !t.odd
+      );
+      if (expiredTips.length > 0) {
+        causes.push(`${expiredTips.length} tip(s) expirada(s)`);
+        analysis = `Existem ${expiredTips.length} tip(s) expirada(s).`;
+      }
+      context = `Histórico de tips: ${tips.length} total, ${tips.filter((t: any) => t.status === "PROCESSING").length} em processamento`;
+    } else {
+      findings.push("Nenhuma tip encontrada");
+      analysis = "Usuário não possui histórico de tips.";
+    }
+  }
 
-### 🔐 Para problemas de CONTA/VERIFICAÇÃO:
-- Status de verificação de documentos
-- Status da conta (ACTIVE, BANNED, etc.)
-- Data de criação da conta
-- Histórico de tentativas de verificação
+  // Análise para problemas de INDICAÇÃO
+  if (
+    queryLower.includes("indicação") ||
+    queryLower.includes("referral") ||
+    queryLower.includes("indicar")
+  ) {
+    if (userData.referrals && userData.referrals.length > 0) {
+      findings.push(`Total de indicações: ${userData.referrals.length}`);
+      userData.referrals.forEach((ref: any) => {
+        findings.push(
+          `Indicação para ${ref.referred.displayName} - Status: ${ref.status} - Recompensa: R$ ${ref.reward}`
+        );
+      });
+      const unfinished = userData.referrals.filter(
+        (r: any) => r.status !== "FINISHED"
+      );
+      if (unfinished.length > 0) {
+        causes.push(`${unfinished.length} indicação(ões) pendente(s)`);
+        analysis = `Existem ${unfinished.length} indicação(ões) que ainda não foram finalizadas.`;
+      }
+      context = `Indicações: ${userData.referrals.length} total, ${userData.referrals.filter((r: any) => r.status === "FINISHED").length} finalizadas`;
+    } else {
+      findings.push("Nenhuma indicação encontrada");
+      analysis = "Usuário não possui histórico de indicações.";
+    }
+  }
 
-### 💸 Para problemas de SAQUE/PAGAMENTO:
-- Transações de saque (status, valores, datas)
-- Saldo disponível vs saldo bloqueado
-- Método de pagamento configurado
-- Histórico de saques anteriores
+  // Se não encontrou nada específico, análise geral
+  if (!analysis) {
+    analysis = `Análise geral da conta. Status: ${userData.user.status}, ${userData.transactions.length} transações totais.`;
+    context = `Conta ${userData.user.status} com ${userData.transactions.length} transações`;
+  }
 
-### 🎯 Para problemas de APOSTAS/TIPS:
-- Histórico de Tips/coupons recentes
-- Status das Tips (PROCESSING, WON, LOST, EXPIRED, CANCELED)
-- Padrões de Tips no gamemode específico mencionado
-- Saldo de Tips
-
-**IMPORTANTE - Campos de Data em Transações:**
-- createdAt: Data/hora quando a transação foi CRIADA
-- updatedAt: Data/hora quando a transação mudou para o status atual
-- Para tips EXPIRADAS: use updatedAt como data de expiração, NÃO createdAt
-
-**FORMATAÇÃO DE DATAS OBRIGATÓRIA:**
-- SEMPRE inclua horário completo quando disponível nos dados
-- Formato: "DD de mês de AAAA às HH:MM"
-- Exemplo: "28 de julho de 2025 às 02:51"
-- NUNCA omita horas e minutos quando disponíveis nos timestamps
-
-### 👥 Para problemas de INDICAÇÃO:
-- Status das referrals (CREATED, FINISHED)
-- Recompensas recebidas vs esperadas
-- Regras de elegibilidade não atendidas
-
-### 🎮 Para problemas de JOGOS:
-- Atividade no gamemode específico mencionado
-- Estatísticas de performance
-- Configurações de jogo relevantes
-
-## 📤 FORMATO DE RESPOSTA OBRIGATÓRIO:
-**CRÍTICO**: Você DEVE retornar APENAS um objeto JSON válido, sem formatação markdown.
-NÃO use blocos de código markdown. Retorne APENAS o JSON puro.
-
-Estrutura obrigatória:
-{
-  "userData": "object",
-  "issueSpecificAnalysis": "object", 
-  "relevantFindings": "array",
-  "potentialCauses": "array",
-  "contextForKnowledge": "string"
-}
-
-**REGRAS:**
-- SEMPRE execute getUserTool primeiro
-- Analise APENAS dados relacionados à questão específica
-- Ignore aspectos irrelevantes para o problema mencionado
-- Seja preciso e objetivo na análise direcionada
-- Identifique causas potenciais baseadas nos dados relevantes
-- SEMPRE retorne JSON válido sem formatação markdown`,
-  model: openai("gpt-5-mini"),
-  tools: {
-    getUserTool,
-  },
-});
+  return {
+    issueSpecificAnalysis: analysis,
+    relevantFindings:
+      findings.length > 0
+        ? findings
+        : ["Nenhuma informação relevante encontrada"],
+    potentialCauses: causes,
+    contextForKnowledge: context || userQuery,
+  };
+};
 
 export const userDataAnalystTool = createTool({
   id: "user-data-analyst",
@@ -93,7 +178,6 @@ export const userDataAnalystTool = createTool({
     userQuery: z.string().describe("Original user query for context"),
   }),
   outputSchema: z.object({
-    userData: z.any().describe("Raw user data"),
     issueSpecificAnalysis: z
       .string()
       .describe("Análise focada nos aspectos relevantes para a questão"),
@@ -106,36 +190,33 @@ export const userDataAnalystTool = createTool({
     contextForKnowledge: z
       .string()
       .describe("Contexto específico para consultar a base de conhecimento"),
+    // Apenas transações PAYOUT para withdrawalSpecialistTool quando necessário
+    payoutTransactions: z
+      .array(z.any())
+      .optional()
+      .describe(
+        "Transações PAYOUT em processamento (apenas quando houver saques)"
+      ),
   }),
   execute: async ({ context }) => {
-    const prompt = `Analise os dados do usuário para o ID: ${context.userId}
-    
-Consulta original do usuário: "${context.userQuery}"
+    // Buscar dados do usuário
+    const userData = await getUserTool.execute({
+      context: { userId: context.userId },
+    });
 
-Por favor:
-1. Obtenha os dados do usuário usando getUserTool
-2. Execute análise proativa conforme definido em suas instruções
-3. Retorne uma resposta JSON estruturada com todos os campos obrigatórios
+    // Analisar dados diretamente sem LLM
+    const analysis = analyzeUserData(userData, context.userQuery);
 
-IMPORTANTE: Retorne APENAS um objeto JSON válido. NÃO use formatação markdown, NÃO use blocos de código. Apenas o JSON puro.
+    // Extrair apenas transações PAYOUT em processamento se houver
+    const payoutTransactions =
+      userData.transactions?.filter(
+        (t: any) => t.type === "PAYOUT" && t.status === "PROCESSING"
+      ) || [];
 
-Lembre-se: Analise APENAS aspectos relevantes para a questão específica do usuário.`;
-
-    const result = await userDataAnalystAgent.generate(prompt);
-
-    console.log(result.text);
-
-    try {
-      return JSON.parse(result.text);
-    } catch (error) {
-      // Fallback if JSON parsing fails
-      return {
-        userData: null,
-        issueSpecificAnalysis: result.text,
-        relevantFindings: [],
-        potentialCauses: [],
-        contextForKnowledge: result.text,
-      };
-    }
+    return {
+      ...analysis,
+      payoutTransactions:
+        payoutTransactions.length > 0 ? payoutTransactions : undefined,
+    };
   },
 });

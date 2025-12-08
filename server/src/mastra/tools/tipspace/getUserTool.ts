@@ -5,7 +5,25 @@ import { ISearchUserResponse } from "./types";
 import { outputSchema } from "./outputSchema";
 import isNull from "lodash/isNull.js";
 
+// Cache em memória com TTL de 30 segundos
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 30 * 1000; // 30 segundos
+
 const getUserData = async (userId: string) => {
+  // Verificar cache
+  const cached = cache.get(userId);
+  const now = Date.now();
+
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`Cache hit for ${userId}`);
+    return cached.data;
+  }
+
   console.log(`Fetching last coupons for ${userId}...`);
 
   const { data } = await api.get<ISearchUserResponse>(`/users/search`, {
@@ -56,6 +74,21 @@ const getUserData = async (userId: string) => {
       })
     ),
   };
+
+  // Armazenar no cache
+  cache.set(userId, {
+    data: response,
+    timestamp: now,
+  });
+
+  // Limpar entradas expiradas periodicamente (apenas para evitar vazamento de memória)
+  if (cache.size > 100) {
+    for (const [key, entry] of cache.entries()) {
+      if (now - entry.timestamp >= CACHE_TTL_MS) {
+        cache.delete(key);
+      }
+    }
+  }
 
   return response;
 };

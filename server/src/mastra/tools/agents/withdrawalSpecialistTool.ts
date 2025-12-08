@@ -1,88 +1,103 @@
 import { createTool } from "@mastra/core";
-import { Agent } from "@mastra/core";
 import { z } from "zod";
-import { openai } from "@ai-sdk/openai";
 
-const withdrawalSpecialistAgent = new Agent({
-  name: "Withdrawal Specialist",
-  instructions: `# ESPECIALISTA EM SAQUES
+// Função auxiliar para calcular dias entre duas datas
+const calculateDaysSince = (dateString: string): number => {
+  if (!dateString) return 0;
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
 
-Você é especialista em análise de saques/payouts da Tipspace. Sua função é:
+// Função auxiliar para formatar datas
+const formatDate = (dateString: string): string => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const day = date.getDate();
+  const month = date.toLocaleString("pt-BR", { month: "long" });
+  const year = date.getFullYear();
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  return `${day} de ${month} de ${year} às ${hours}:${minutes}`;
+};
 
-## 🎯 RESPONSABILIDADE PRINCIPAL:
-Analisar situações de saque e fornecer avaliações precisas sobre status e prazos baseadas em dados reais.
+// Função para analisar saques diretamente
+const analyzeWithdrawals = (
+  userAnalysisResult: any
+): {
+  hasWithdrawals: boolean;
+  withdrawalStatus: string;
+  timeAnalysis: string;
+  recommendation: string;
+  contextForSupport: string;
+} => {
+  // Usar payoutTransactions comprimido em vez de userData completo
+  const processingPayouts = userAnalysisResult.payoutTransactions || [];
 
-## ⚠️ REGRA CRÍTICA - CÁLCULO DE TEMPO:
-**Para qualquer saque em processamento:**
-1. **OBRIGATÓRIO**: Analise a data de criação (createdAt) de cada transação de PAYOUT
-2. **CALCULE**: Diferença exata em dias entre createdAt e data atual
-3. **AVALIAÇÃO ESPECÍFICA**:
-   - Se ≤ 3 dias: "DENTRO_DO_PRAZO" 
-   - Se > 3 dias: "FORA_DO_PRAZO"
-4. **SEJA PRECISO**: Use o número exato de dias calculado
-5. **NUNCA especule** sobre cancelamento automático
-6. **NUNCA faça suposições** sobre o que acontece após o prazo
+  if (processingPayouts.length === 0) {
+    return {
+      hasWithdrawals: false,
+      withdrawalStatus: "NONE",
+      timeAnalysis: "Nenhum saque em processamento",
+      recommendation: "Usuário não possui saques em processamento no momento",
+      contextForSupport: "Nenhum saque em processamento encontrado",
+    };
+  }
 
-## 📊 ANÁLISE DETALHADA DE DADOS:
-Examine TODOS os campos relevantes dos dados do usuário:
-- **userData.transactions**: Array com todas as transações
-- **Filtrar por**: type: "PAYOUT" e status: "PROCESSING"
-- **Para cada PAYOUT PROCESSING**:
-  - Extrair **createdAt** (data de criação)
-  - Calcular **dias exatos** desde a criação
-  - Determinar se está dentro ou fora do prazo
-  - Extrair **amount** (valor do saque)
+  // Analisar cada saque em processamento
+  const analyses = processingPayouts.map((payout: any) => {
+    const daysSince = calculateDaysSince(payout.createdAt);
+    const isWithinDeadline = daysSince <= 3;
+    const status = isWithinDeadline ? "DENTRO_DO_PRAZO" : "FORA_DO_PRAZO";
 
-## 🕒 INSTRUÇÕES DE CÁLCULO DE TEMPO:
-**Exemplo**: 
-- createdAt: "2024-01-15T10:30:00Z"
-- Data atual: "2024-01-16T15:20:00Z"
-- Resultado: 1 dia (não 0 dias)
+    return {
+      amount: payout.amount,
+      createdAt: payout.createdAt,
+      daysSince,
+      status,
+      formattedDate: formatDate(payout.createdAt),
+    };
+  });
 
-**Regras**:
-- Sempre arredonde para cima se passou de 12 horas
-- Seja preciso: "1 dia desde a solicitação", não "0 dias"
+  // Determinar status geral (se algum está fora do prazo, status geral é FORA_DO_PRAZO)
+  const overallStatus = analyses.some((a) => a.status === "FORA_DO_PRAZO")
+    ? "FORA_DO_PRAZO"
+    : "DENTRO_DO_PRAZO";
 
-## 📤 FORMATO DE RESPOSTA OBRIGATÓRIO:
-**CRÍTICO**: Você DEVE retornar APENAS um objeto JSON válido, sem formatação markdown.
-NÃO use blocos de código markdown. Retorne APENAS o JSON puro.
+  // Construir análise de tempo
+  const timeAnalysisParts = analyses.map((a) => {
+    return `${a.daysSince} dia(s) desde a solicitação - ${a.status}`;
+  });
+  const timeAnalysis = timeAnalysisParts.join("; ");
 
-Estrutura obrigatória:
-{
-  "hasWithdrawals": boolean,
-  "withdrawalStatus": "string",
-  "timeAnalysis": "string",
-  "recommendation": "string", 
-  "contextForSupport": "string"
-}
+  // Construir recomendação
+  let recommendation = "";
+  if (overallStatus === "DENTRO_DO_PRAZO") {
+    const maxDays = Math.max(...analyses.map((a) => a.daysSince));
+    recommendation = `Seu(s) saque(s) está(ão) dentro do prazo normal de processamento (${maxDays} dia(s) desde a solicitação). O prazo é de até 3 dias úteis.`;
+  } else {
+    const overdueAnalyses = analyses.filter(
+      (a) => a.status === "FORA_DO_PRAZO"
+    );
+    recommendation = `Seu(s) saque(s) passou(aram) do prazo normal de processamento. ${overdueAnalyses.length} saque(s) com mais de 3 dias. Recomendamos contatar o suporte.`;
+  }
 
-## 🔍 PROCESSO DE ANÁLISE:
-1. **Examinar userData.transactions**
-2. **Filtrar type: "PAYOUT" e status: "PROCESSING"**
-3. **Para cada resultado**:
-   - Calcular dias desde createdAt
-   - Comparar com prazo de 3 dias
-   - Determinar recomendação
-4. **Se não encontrar PAYOUTs PROCESSING**: hasWithdrawals = false
+  // Construir contexto para suporte
+  const contextParts = analyses.map((a) => {
+    return `Saque de R$ ${a.amount} criado em ${a.formattedDate} (${a.daysSince} dia(s) atrás)`;
+  });
+  const contextForSupport = `Saque(s) em processamento: ${contextParts.join("; ")}`;
 
-## 📋 EXEMPLOS DE RESPOSTA JSON VÁLIDO:
-
-### Saque Dentro do Prazo:
-{"hasWithdrawals": true, "withdrawalStatus": "PROCESSING", "timeAnalysis": "1 dia desde a solicitação - DENTRO_DO_PRAZO", "recommendation": "Seu saque está dentro do prazo normal de processamento", "contextForSupport": "O saque de R$50,00 está atualmente em processamento desde 2025-01-15."}
-
-### Saque Fora do Prazo:
-{"hasWithdrawals": true, "withdrawalStatus": "PROCESSING", "timeAnalysis": "5 dias desde a solicitação - FORA_DO_PRAZO", "recommendation": "Seu saque passou do prazo normal, recomendamos contatar o suporte", "contextForSupport": "O saque de R$100,00 está em processamento há 5 dias desde 2025-01-10."}
-
-**REGRAS CRÍTICAS:**
-- Analise os dados reais fornecidos pelo userDataAnalystTool
-- Calcule tempo baseado na data createdAt real
-- Seja mathematicamente preciso com os dias
-- Use apenas dados explícitos, não especule
-- Mantenha foco exclusivo em transações PAYOUT PROCESSING
-- SEMPRE retorne JSON válido sem formatação markdown`,
-  model: openai("gpt-5-mini"),
-  tools: {},
-});
+  return {
+    hasWithdrawals: true,
+    withdrawalStatus: "PROCESSING",
+    timeAnalysis,
+    recommendation,
+    contextForSupport,
+  };
+};
 
 export const withdrawalSpecialistTool = createTool({
   id: "withdrawal-specialist",
@@ -92,7 +107,7 @@ export const withdrawalSpecialistTool = createTool({
     userAnalysisResult: z
       .any()
       .describe(
-        "Complete result from user data analyst including userData and full analysis"
+        "Result from user data analyst including analysis and payoutTransactions (if any)"
       ),
     userQuery: z.string().describe("Original user query for context"),
   }),
@@ -110,37 +125,7 @@ export const withdrawalSpecialistTool = createTool({
       .describe("Context if support contact is needed"),
   }),
   execute: async ({ context }) => {
-    const prompt = `Analise a situação de saque para este usuário:
-
-Resultado da Análise do Usuário: ${JSON.stringify(context.userAnalysisResult, null, 2)}
-Consulta Original: "${context.userQuery}"
-
-Por favor:
-1. Analise todos os dados de saque/payout do resultado da análise do usuário
-2. Calcule o tempo decorrido para quaisquer saques em PROCESSING
-3. Determine se os saques estão dentro ou fora do prazo normal (≤3 dias)
-4. Forneça recomendações específicas
-5. Retorne uma resposta JSON estruturada com todos os campos obrigatórios
-
-IMPORTANTE: Retorne APENAS um objeto JSON válido. NÃO use formatação markdown, NÃO use blocos de código. Apenas o JSON puro.
-
-Lembre-se: NUNCA especule sobre cancelamento automático ou o que acontece após os prazos.`;
-
-    const result = await withdrawalSpecialistAgent.generate(prompt);
-
-    console.log(result.text);
-
-    try {
-      return JSON.parse(result.text);
-    } catch (error) {
-      // Fallback if JSON parsing fails
-      return {
-        hasWithdrawals: false,
-        withdrawalStatus: "ANALYSIS_ERROR",
-        timeAnalysis: result.text,
-        recommendation: result.text,
-        contextForSupport: "",
-      };
-    }
+    // Analisar saques diretamente sem LLM
+    return analyzeWithdrawals(context.userAnalysisResult);
   },
 });

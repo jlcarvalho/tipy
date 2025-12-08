@@ -12,14 +12,14 @@ const baseTipyQueryTool = createVectorQueryTool({
   enableFilter: true,
 });
 
-// Cache em memória com TTL de 60 segundos
+// Cache em memória com TTL de 10 minutos
 interface CacheEntry {
   data: any;
   timestamp: number;
 }
 
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 60 * 1000; // 60 segundos
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutos (otimizado para melhor performance)
 
 // Função para gerar hash da query
 const hashQuery = (query: string): string => {
@@ -33,12 +33,14 @@ const hashQuery = (query: string): string => {
 export const tipyQueryTool = createTool({
   id: baseTipyQueryTool.id,
   description: baseTipyQueryTool.description,
-  // Sobrescreve o inputSchema para adicionar valor padrão de 5 ao topK
+  // Sobrescreve o inputSchema para adicionar valor padrão de 3 ao topK (otimizado para performance)
   inputSchema: baseTipyQueryTool.inputSchema.extend({
     topK: z
       .number()
-      .default(5)
-      .describe("Number of top results to retrieve (default: 5)"),
+      .default(4)
+      .describe(
+        "Number of top results to retrieve (default: 3, optimized for performance)"
+      ),
   }),
   outputSchema: baseTipyQueryTool.outputSchema,
   execute: async (context) => {
@@ -59,7 +61,7 @@ export const tipyQueryTool = createTool({
       return cached.data;
     }
 
-    // Executar query original (o schema do Zod já aplica o default de topK: 5)
+    // Executar query original (o schema do Zod já aplica o default de topK: 3)
     const result = await baseTipyQueryTool.execute(context);
 
     // Armazenar no cache

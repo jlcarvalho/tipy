@@ -5,14 +5,14 @@ import { ISearchUserResponse } from "./types";
 import { outputSchema } from "./outputSchema";
 import isNull from "lodash/isNull.js";
 
-// Cache em memória com TTL de 30 segundos
+// Cache em memória com TTL de 5 minutos
 interface CacheEntry {
   data: any;
   timestamp: number;
 }
 
 const cache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 30 * 1000; // 30 segundos
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos (otimizado para melhor performance)
 
 const getUserData = async (userId: string) => {
   // Verificar cache

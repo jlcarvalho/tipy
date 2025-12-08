@@ -1,6 +1,25 @@
 import { createTool } from "@mastra/core";
 import { z } from "zod";
 import { getUserTool } from "../tipspace/getUserTool";
+import crypto from "crypto";
+
+// Cache de resultados de análise (não apenas dados brutos)
+interface AnalysisCacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+const analysisCache = new Map<string, AnalysisCacheEntry>();
+const ANALYSIS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos (mesmo TTL dos dados brutos)
+
+// Função para gerar chave de cache da análise
+const getAnalysisCacheKey = (userId: string, userQuery: string): string => {
+  const normalizedQuery = userQuery.toLowerCase().trim();
+  return crypto
+    .createHash("sha256")
+    .update(`${userId}:${normalizedQuery}`)
+    .digest("hex");
+};
 
 // Função auxiliar para formatar datas
 const formatDate = (dateString: string): string => {
@@ -199,14 +218,31 @@ export const userDataAnalystTool = createTool({
       ),
   }),
   execute: async ({ context, runtimeContext }) => {
-    // Buscar dados do usuário
+    const { userId, userQuery } = context;
+    const now = Date.now();
+
+    // Verificar cache de análise
+    const analysisCacheKey = getAnalysisCacheKey(userId, userQuery);
+    const cachedAnalysis = analysisCache.get(analysisCacheKey);
+
+    if (
+      cachedAnalysis &&
+      now - cachedAnalysis.timestamp < ANALYSIS_CACHE_TTL_MS
+    ) {
+      console.log(
+        `Cache hit for analysis: ${analysisCacheKey.substring(0, 8)}...`
+      );
+      return cachedAnalysis.data;
+    }
+
+    // Buscar dados do usuário (já tem cache próprio)
     const userData = await getUserTool.execute({
-      context: { userId: context.userId },
+      context: { userId },
       runtimeContext,
     });
 
     // Analisar dados diretamente sem LLM
-    const analysis = analyzeUserData(userData, context.userQuery);
+    const analysis = analyzeUserData(userData, userQuery);
 
     // Extrair apenas transações PAYOUT em processamento se houver
     const payoutTransactions =
@@ -214,10 +250,27 @@ export const userDataAnalystTool = createTool({
         (t: any) => t.type === "PAYOUT" && t.status === "PROCESSING"
       ) || [];
 
-    return {
+    const result = {
       ...analysis,
       payoutTransactions:
         payoutTransactions.length > 0 ? payoutTransactions : undefined,
     };
+
+    // Armazenar no cache de análise
+    analysisCache.set(analysisCacheKey, {
+      data: result,
+      timestamp: now,
+    });
+
+    // Limpar entradas expiradas periodicamente
+    if (analysisCache.size > 100) {
+      for (const [key, entry] of analysisCache.entries()) {
+        if (now - entry.timestamp >= ANALYSIS_CACHE_TTL_MS) {
+          analysisCache.delete(key);
+        }
+      }
+    }
+
+    return result;
   },
 });

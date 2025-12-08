@@ -6,39 +6,21 @@ import {
 
 import { Mastra } from "@mastra/core";
 import { MastraClient } from "@mastra/client-js";
-import { PgVector } from "@mastra/pg";
-import { PostgresStore } from "@mastra/pg";
 import { registerApiRoute } from "@mastra/core/server";
 import { tipyAgent } from "./agents/tipyAgent";
-import { tftAgent } from "./agents/tftAgent";
+// import { tftAgent } from "./agents/tftAgent";
 import jwt from "jsonwebtoken";
-
-const pgVector = new PgVector({
-  connectionString: process.env.POSTGRES_CONNECTION_STRING!,
-});
-
-// Initialize PostgreSQL storage for telemetry, memory, workflows, and eval data
-const pgStorage = new PostgresStore({
-  connectionString: process.env.POSTGRES_CONNECTION_STRING!,
-});
+import { pgVector, pgStorage, initVectorIndices } from "./storage";
 
 // Initialize the vector store
-await pgVector.createIndex({
-  indexName: "tipy",
-  dimension: 1536,
-});
-
-await pgVector.createIndex({
-  indexName: "tft_academy",
-  dimension: 1536,
-});
+await initVectorIndices();
 
 const serviceAdapter = new ExperimentalEmptyAdapter();
 
 export const mastra = new Mastra({
   agents: {
     tipyAgent,
-    tftAgent,
+    // tftAgent,
   },
   vectors: {
     pgVector,
@@ -48,7 +30,7 @@ export const mastra = new Mastra({
     middleware: [
       async (c, next) => {
         const authHeader = c.req.header("Authorization");
-        const runtimeContext = c.get("runtimeContext");
+        const requestContext = c.get("requestContext");
 
         let userId = "camilasavia@gmail.com"; // Default fallback
 
@@ -72,7 +54,9 @@ export const mastra = new Mastra({
           }
         }
 
-        runtimeContext.set("user-id", userId);
+        if (requestContext) {
+          requestContext.set("user-id", userId);
+        }
 
         await next();
       },

@@ -1,14 +1,15 @@
 import { createVectorQueryTool } from "@mastra/rag";
-import { createTool } from "@mastra/core";
-import { openai } from "@ai-sdk/openai";
+import { createTool } from "@mastra/core/tools";
+import { ModelRouterEmbeddingModel } from "@mastra/core/llm";
 import { z } from "zod";
 import crypto from "crypto";
+import { pgVector } from "../../storage";
 
 // Tool base sem cache
 const baseTipyQueryTool = createVectorQueryTool({
   vectorStoreName: "pgVector",
   indexName: "tipy",
-  model: openai.embedding("text-embedding-3-small"),
+  model: new ModelRouterEmbeddingModel("openai/text-embedding-3-small"),
   enableFilter: true,
 });
 
@@ -62,6 +63,20 @@ export const tipyQueryTool = createTool({
     }
 
     // Executar query original (o schema do Zod já aplica o default de topK: 3)
+    // Injetar dependências necessárias para o baseTipyQueryTool funcionar
+    // já que ele não está registrado diretamente no agente e precisa acessar o pgVector
+    if (!(baseTipyQueryTool as any).mastra) {
+      Object.assign(baseTipyQueryTool, {
+        mastra: {
+          vectors: {
+            get: (name: string) => {
+              if (name === "pgVector") return pgVector;
+              return undefined;
+            },
+          },
+        },
+      });
+    }
     const result = await baseTipyQueryTool.execute(context);
 
     // Armazenar no cache

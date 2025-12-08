@@ -33,11 +33,11 @@ const hashQuery = (query: string): string => {
 export const tipyQueryTool = createTool({
   id: baseTipyQueryTool.id,
   description: baseTipyQueryTool.description,
-  // Sobrescreve o inputSchema para adicionar valor padrão de 3 ao topK (otimizado para performance)
+  // Sobrescreve o inputSchema para adicionar valor padrão de 10 ao topK
   inputSchema: baseTipyQueryTool.inputSchema.extend({
     topK: z
       .number()
-      .default(4)
+      .default(10)
       .describe(
         "Number of top results to retrieve (default: 3, optimized for performance)"
       ),

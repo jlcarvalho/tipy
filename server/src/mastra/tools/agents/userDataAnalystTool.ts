@@ -120,10 +120,7 @@ const analyzeUserData = (
   ) {
     const tips = userData.transactions.filter((t: any) => t.type === "COUPON");
     if (tips.length > 0) {
-      const recentTips = tips.slice(0, 5);
-      findings.push(`Total de tips: ${tips.length}`);
-      findings.push(`Tips recentes analisadas: ${recentTips.length}`);
-      recentTips.forEach((tip: any) => {
+      tips.forEach((tip: any) => {
         const status =
           tip.status === "FINISHED" && !tip.odd ? "EXPIRED" : tip.status;
         findings.push(
@@ -169,12 +166,6 @@ const analyzeUserData = (
       findings.push("Nenhuma indicação encontrada");
       analysis = "Usuário não possui histórico de indicações.";
     }
-  }
-
-  // Se não encontrou nada específico, análise geral
-  if (!analysis) {
-    analysis = `Análise geral da conta. Status: ${userData.user.status}, ${userData.transactions.length} transações totais.`;
-    context = `Conta ${userData.user.status} com ${userData.transactions.length} transações`;
   }
 
   return {

@@ -30,6 +30,8 @@ const getUserData = async (userId: string) => {
     params: { q: userId },
   });
 
+  console.log(data.transactions);
+
   const response = {
     banned: data.banned,
     user: {

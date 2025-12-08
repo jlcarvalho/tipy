@@ -5,7 +5,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     setupFiles: ["./src/test/setup.ts"],
-    testTimeout: 60000, // 60 seconds for LLM evaluation tests
-    hookTimeout: 60000,
+    testTimeout: 120000, // 120 seconds for LLM evaluation tests (increased due to timeout issues)
+    hookTimeout: 120000,
   },
 });

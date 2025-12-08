@@ -93,7 +93,7 @@ const queries: Array<{
       "Os saques são processados em até 3 dias úteis",
       "O usuário ainda tem tempo para aguardar o processamento antes de entrar em contato com o suporte",
       "Os pagamentos costumam ser feitos por volta das 19h",
-      "Se algo der errado com o saque, o valor será devolvido automaticamente para a carteira do usuário e o saque cancelado",
+      "Se algo der errado com o saque, o valor será devolvido automaticamente para a carteira do usuário na Tipspace e o saque cancelado",
       "Se o saque não for processado até o final do prazo, o usuário deve entrar em contato com o suporte",
     ],
     instructions: [
@@ -233,7 +233,6 @@ describe("Tipy Agent Evaluation Tests", () => {
       maxHallucinationScore = 0,
       minPromptAlignmentScore = 0,
     }) => {
-      console.log(context);
       describe(`Evaluation for query: ${query}`, () => {
         let response: Awaited<ReturnType<typeof genAnswer>> | null = null;
 
@@ -248,7 +247,7 @@ describe("Tipy Agent Evaluation Tests", () => {
         };
 
         if (context) {
-          it("should use relevant context from knowledge base for withdrawal queries", async () => {
+          it("should use relevant context from knowledge base", async () => {
             const response = await getResponse();
             const metric = new ContextRelevancyMetric(
               await tipyAgent.getModel(),
@@ -264,7 +263,7 @@ describe("Tipy Agent Evaluation Tests", () => {
 
             expect(result.score).toBeGreaterThanOrEqual(minRelevancyScore);
             expect(result.info.reason).toBeDefined();
-          }, 60000);
+          }, 120000);
 
           it("should use precise context from knowledge base", async () => {
             const response = await getResponse();
@@ -281,7 +280,7 @@ describe("Tipy Agent Evaluation Tests", () => {
             console.log("Context Precision Reason:", result.info.reason);
 
             expect(result.score).toBeGreaterThanOrEqual(minPrecisionScore);
-          }, 60000);
+          }, 120000);
 
           it("should not hallucinate information not in knowledge base", async () => {
             const response = await getResponse();
@@ -296,7 +295,7 @@ describe("Tipy Agent Evaluation Tests", () => {
             console.log("Hallucination Reason:", result.info.reason);
 
             expect(result.score).toBeLessThanOrEqual(maxHallucinationScore);
-          }, 60000);
+          }, 120000);
         }
 
         if (instructions) {
@@ -317,7 +316,7 @@ describe("Tipy Agent Evaluation Tests", () => {
             expect(result.score).toBeGreaterThanOrEqual(
               minPromptAlignmentScore
             );
-          }, 60000);
+          }, 120000);
         }
       });
     }

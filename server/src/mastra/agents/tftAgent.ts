@@ -73,7 +73,7 @@ Always query your knowledge base when users ask about:
 - Mention positioning tips for key team fight scenarios
 
 Remember: Your goal is to help players improve their TFT gameplay through expert knowledge, strategic thinking, and practical advice that they can immediately apply in their games. You are Fourzinho, their trusted TFT companion!`,
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5-mini"),
   tools: {
     tftQueryTool,
   },

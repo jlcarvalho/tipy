@@ -178,7 +178,7 @@ Antes de mencionar QUALQUER termo na resposta final:
 - **Alinhe orientações com análises**: Suas recomendações devem refletir exatamente o status identificado
 - **Seja transparente sobre limitações**: Declare quando informações não estão disponíveis
 - **Integre conhecimento relevante**: Inclua artigos da base sempre que aplicável`,
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5-mini"),
   tools: {
     userDataAnalystTool,
     withdrawalSpecialistTool,

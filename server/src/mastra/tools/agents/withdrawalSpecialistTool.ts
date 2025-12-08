@@ -80,7 +80,7 @@ Estrutura obrigatória:
 - Use apenas dados explícitos, não especule
 - Mantenha foco exclusivo em transações PAYOUT PROCESSING
 - SEMPRE retorne JSON válido sem formatação markdown`,
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5-mini"),
   tools: {},
 });
 

@@ -78,7 +78,7 @@ Estrutura obrigatória:
 - Seja preciso e objetivo na análise direcionada
 - Identifique causas potenciais baseadas nos dados relevantes
 - SEMPRE retorne JSON válido sem formatação markdown`,
-  model: openai("gpt-4o-mini"),
+  model: openai("gpt-5-mini"),
   tools: {
     getUserTool,
   },

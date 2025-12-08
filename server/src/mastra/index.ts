@@ -91,14 +91,10 @@ export const mastra = new Mastra({
       registerApiRoute("/copilotkit", {
         method: `POST`,
         handler: async (c) => {
-          const client = new MastraClient({
-            baseUrl: "http://localhost:4111",
-          });
+          const tipyAgent = mastra.getAgent("tipyAgent");
 
           const runtime = new CopilotRuntime({
-            agents: (await client.getAGUI({
-              resourceId: "tipyAgent",
-            })) as any,
+            agents: [tipyAgent] as any,
           });
 
           const handler = copilotRuntimeNodeHttpEndpoint({

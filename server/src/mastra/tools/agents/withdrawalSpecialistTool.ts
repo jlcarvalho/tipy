@@ -47,47 +47,57 @@ const analyzeWithdrawals = (
   }
 
   // Analisar cada saque em processamento
-  const analyses = processingPayouts.map((payout: any) => {
-    const daysSince = calculateDaysSince(payout.createdAt);
-    const isWithinDeadline = daysSince <= 3;
-    const status = isWithinDeadline ? "DENTRO_DO_PRAZO" : "FORA_DO_PRAZO";
+  const analyses = processingPayouts.map(
+    (payout: { amount: number; createdAt: string }) => {
+      const daysSince = calculateDaysSince(payout.createdAt);
+      const isWithinDeadline = daysSince <= 3;
+      const status = isWithinDeadline ? "DENTRO_DO_PRAZO" : "FORA_DO_PRAZO";
 
-    return {
-      amount: payout.amount,
-      createdAt: payout.createdAt,
-      daysSince,
-      status,
-      formattedDate: formatDate(payout.createdAt),
-    };
-  });
+      return {
+        amount: payout.amount,
+        createdAt: payout.createdAt,
+        daysSince,
+        status,
+        formattedDate: formatDate(payout.createdAt),
+      };
+    }
+  );
 
   // Determinar status geral (se algum está fora do prazo, status geral é FORA_DO_PRAZO)
-  const overallStatus = analyses.some((a) => a.status === "FORA_DO_PRAZO")
+  const overallStatus = analyses.some(
+    (a: { status: string }) => a.status === "FORA_DO_PRAZO"
+  )
     ? "FORA_DO_PRAZO"
     : "DENTRO_DO_PRAZO";
 
   // Construir análise de tempo
-  const timeAnalysisParts = analyses.map((a) => {
-    return `${a.daysSince} dia(s) desde a solicitação - ${a.status}`;
-  });
+  const timeAnalysisParts = analyses.map(
+    (a: { daysSince: number; status: string }) => {
+      return `${a.daysSince} dia(s) desde a solicitação - ${a.status}`;
+    }
+  );
   const timeAnalysis = timeAnalysisParts.join("; ");
 
   // Construir recomendação
   let recommendation = "";
   if (overallStatus === "DENTRO_DO_PRAZO") {
-    const maxDays = Math.max(...analyses.map((a) => a.daysSince));
+    const maxDays = Math.max(
+      ...analyses.map((a: { daysSince: number }) => a.daysSince)
+    );
     recommendation = `Seu(s) saque(s) está(ão) dentro do prazo normal de processamento (${maxDays} dia(s) desde a solicitação). O prazo é de até 3 dias úteis.`;
   } else {
     const overdueAnalyses = analyses.filter(
-      (a) => a.status === "FORA_DO_PRAZO"
+      (a: { status: string }) => a.status === "FORA_DO_PRAZO"
     );
     recommendation = `Seu(s) saque(s) passou(aram) do prazo normal de processamento. ${overdueAnalyses.length} saque(s) com mais de 3 dias. Recomendamos contatar o suporte.`;
   }
 
   // Construir contexto para suporte
-  const contextParts = analyses.map((a) => {
-    return `Saque de R$ ${a.amount} criado em ${a.formattedDate} (${a.daysSince} dia(s) atrás)`;
-  });
+  const contextParts = analyses.map(
+    (a: { amount: number; formattedDate: string; daysSince: number }) => {
+      return `Saque de R$ ${a.amount} criado em ${a.formattedDate} (${a.daysSince} dia(s) atrás)`;
+    }
+  );
   const contextForSupport = `Saque(s) em processamento: ${contextParts.join("; ")}`;
 
   return {

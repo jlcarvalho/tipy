@@ -198,10 +198,11 @@ export const userDataAnalystTool = createTool({
         "Transações PAYOUT em processamento (apenas quando houver saques)"
       ),
   }),
-  execute: async ({ context }) => {
+  execute: async ({ context, runtimeContext }) => {
     // Buscar dados do usuário
     const userData = await getUserTool.execute({
       context: { userId: context.userId },
+      runtimeContext,
     });
 
     // Analisar dados diretamente sem LLM

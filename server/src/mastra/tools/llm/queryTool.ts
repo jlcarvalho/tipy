@@ -10,7 +10,6 @@ const baseTipyQueryTool = createVectorQueryTool({
   indexName: "tipy",
   model: openai.embedding("text-embedding-3-small"),
   enableFilter: true,
-  maxResults: 5,
 });
 
 // Cache em memória com TTL de 60 segundos
@@ -30,13 +29,20 @@ const hashQuery = (query: string): string => {
     .digest("hex");
 };
 
-// Wrapper com cache
+// Wrapper com cache e valor padrão para topK
 export const tipyQueryTool = createTool({
   id: baseTipyQueryTool.id,
   description: baseTipyQueryTool.description,
-  inputSchema: baseTipyQueryTool.inputSchema,
+  // Sobrescreve o inputSchema para adicionar valor padrão de 5 ao topK
+  inputSchema: baseTipyQueryTool.inputSchema.extend({
+    topK: z
+      .number()
+      .default(5)
+      .describe("Number of top results to retrieve (default: 5)"),
+  }),
   outputSchema: baseTipyQueryTool.outputSchema,
   execute: async (context) => {
+    // O Zod já aplica o valor padrão de 5 para topK através do .default()
     // Gerar hash do contexto completo para usar como chave do cache
     // Ordenar chaves para garantir consistência
     const contextStr = JSON.stringify(
@@ -53,7 +59,7 @@ export const tipyQueryTool = createTool({
       return cached.data;
     }
 
-    // Executar query original
+    // Executar query original (o schema do Zod já aplica o default de topK: 5)
     const result = await baseTipyQueryTool.execute(context);
 
     // Armazenar no cache

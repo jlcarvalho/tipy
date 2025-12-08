@@ -1,17 +1,9 @@
-import { createVectorQueryTool } from "@mastra/rag";
 import { createTool } from "@mastra/core/tools";
-import { ModelRouterEmbeddingModel } from "@mastra/core/llm";
 import { z } from "zod";
 import crypto from "crypto";
 import { pgVector } from "../../storage";
-
-// Tool base sem cache
-const baseTipyQueryTool = createVectorQueryTool({
-  vectorStoreName: "pgVector",
-  indexName: "tipy",
-  model: new ModelRouterEmbeddingModel("openai/text-embedding-3-small"),
-  enableFilter: true,
-});
+import { embed } from "ai";
+import { openai } from "@ai-sdk/openai";
 
 // Cache em memória com TTL de 10 minutos
 interface CacheEntry {
@@ -30,27 +22,24 @@ const hashQuery = (query: string): string => {
     .digest("hex");
 };
 
-// Wrapper com cache e valor padrão para topK
+// Implementação manual do tipyQueryTool
 export const tipyQueryTool = createTool({
-  id: baseTipyQueryTool.id,
-  description: baseTipyQueryTool.description,
-  // Sobrescreve o inputSchema para adicionar valor padrão de 10 ao topK
-  inputSchema: baseTipyQueryTool.inputSchema.extend({
-    topK: z
-      .number()
-      .default(10)
-      .describe(
-        "Number of top results to retrieve (default: 3, optimized for performance)"
-      ),
+  id: "tipyQueryTool",
+  description: "Access the knowledge base to find information needed to answer user questions.",
+  inputSchema: z.object({
+    queryText: z.string().describe("The search query"),
+    topK: z.number().optional().default(10).describe("Number of top results to retrieve"),
+    filter: z.record(z.any()).optional().describe("Filter for the query"),
   }),
-  outputSchema: baseTipyQueryTool.outputSchema,
+  outputSchema: z.any(),
   execute: async (context) => {
-    // O Zod já aplica o valor padrão de 5 para topK através do .default()
+    const { queryText, topK = 10, filter } = context;
+
     // Gerar hash do contexto completo para usar como chave do cache
     // Ordenar chaves para garantir consistência
     const contextStr = JSON.stringify(
-      context.context || context,
-      Object.keys(context.context || context).sort()
+      { queryText, topK, filter },
+      Object.keys({ queryText, topK, filter }).sort()
     );
     const cacheKey = hashQuery(contextStr);
     const now = Date.now();
@@ -62,38 +51,40 @@ export const tipyQueryTool = createTool({
       return cached.data;
     }
 
-    // Executar query original (o schema do Zod já aplica o default de topK: 3)
-    // Injetar dependências necessárias para o baseTipyQueryTool funcionar
-    // já que ele não está registrado diretamente no agente e precisa acessar o pgVector
-    if (!(baseTipyQueryTool as any).mastra) {
-      Object.assign(baseTipyQueryTool, {
-        mastra: {
-          vectors: {
-            get: (name: string) => {
-              if (name === "pgVector") return pgVector;
-              return undefined;
-            },
-          },
-        },
+    try {
+      // 1. Gerar embedding da query usando o mesmo modelo da ingestão
+      const { embedding } = await embed({
+        model: openai.embedding("text-embedding-3-small"),
+        value: queryText,
       });
-    }
-    const result = await baseTipyQueryTool.execute(context);
 
-    // Armazenar no cache
-    cache.set(cacheKey, {
-      data: result,
-      timestamp: now,
-    });
+      // 2. Consultar o vector store diretamente
+      const results = await pgVector.query({
+        indexName: "tipy",
+        queryVector: embedding,
+        topK: topK,
+        filter: filter as any
+      });
 
-    // Limpar entradas expiradas periodicamente (apenas para evitar vazamento de memória)
-    if (cache.size > 100) {
-      for (const [key, entry] of cache.entries()) {
-        if (now - entry.timestamp >= CACHE_TTL_MS) {
-          cache.delete(key);
+      // Armazenar no cache
+      cache.set(cacheKey, {
+        data: results,
+        timestamp: now,
+      });
+
+      // Limpar entradas expiradas
+      if (cache.size > 100) {
+        for (const [key, entry] of cache.entries()) {
+          if (now - entry.timestamp >= CACHE_TTL_MS) {
+            cache.delete(key);
+          }
         }
       }
-    }
 
-    return result;
+      return results;
+    } catch (error) {
+      console.error("Error executing vector query:", error);
+      throw error;
+    }
   },
 });

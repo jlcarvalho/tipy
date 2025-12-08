@@ -25,15 +25,25 @@ const hashQuery = (query: string): string => {
 // Implementação manual do tipyQueryTool
 export const tipyQueryTool = createTool({
   id: "tipyQueryTool",
-  description: "Access the knowledge base to find information needed to answer user questions.",
+  description:
+    "Access the knowledge base to find information needed to answer user questions.",
   inputSchema: z.object({
     queryText: z.string().describe("The search query"),
-    topK: z.number().optional().default(10).describe("Number of top results to retrieve"),
+    topK: z
+      .number()
+      .optional()
+      .default(10)
+      .describe("Number of top results to retrieve (default: 10)"),
     filter: z.record(z.any()).optional().describe("Filter for the query"),
   }),
   outputSchema: z.any(),
   execute: async (context) => {
-    const { queryText, topK = 10, filter } = context;
+    let { queryText, topK = 10, filter } = context;
+
+    // Enforce minimum topK of 10 to ensure sufficient results
+    if (topK < 10) {
+      topK = 10;
+    }
 
     // Gerar hash do contexto completo para usar como chave do cache
     // Ordenar chaves para garantir consistência
@@ -63,7 +73,7 @@ export const tipyQueryTool = createTool({
         indexName: "tipy",
         queryVector: embedding,
         topK: topK,
-        filter: filter as any
+        filter: filter as any,
       });
 
       // Armazenar no cache

@@ -5,6 +5,7 @@ import {
 } from "@copilotkit/runtime";
 
 import { Mastra } from "@mastra/core";
+import { Observability } from "@mastra/observability";
 import { MastraClient } from "@mastra/client-js";
 import { registerApiRoute } from "@mastra/core/server";
 import { tipyAgent } from "./agents/tipyAgent";
@@ -25,6 +26,9 @@ export const mastra = new Mastra({
   vectors: {
     pgVector,
   },
+  observability: new Observability({
+    default: { enabled: true },
+  }),
   storage: pgStorage,
   server: {
     middleware: [
@@ -32,7 +36,7 @@ export const mastra = new Mastra({
         const authHeader = c.req.header("Authorization");
         const requestContext = c.get("requestContext");
 
-        let userId = "camilasavia@gmail.com"; // Default fallback
+        let userId = ""; // Default fallback
 
         if (authHeader?.startsWith("Bearer ")) {
           const token = authHeader.substring(7); // Remove "Bearer " prefix
@@ -71,25 +75,25 @@ export const mastra = new Mastra({
       ],
       credentials: false,
     },
-    apiRoutes: [
-      registerApiRoute("/copilotkit", {
-        method: `POST`,
-        handler: async (c) => {
-          const tipyAgent = mastra.getAgent("tipyAgent");
+    // apiRoutes: [
+    //   registerApiRoute("/copilotkit", {
+    //     method: `POST`,
+    //     handler: async (c) => {
+    //       const tipyAgent = mastra.getAgent("tipyAgent");
 
-          const runtime = new CopilotRuntime({
-            agents: [tipyAgent] as any,
-          });
+    //       const runtime = new CopilotRuntime({
+    //         agents: [tipyAgent] as any,
+    //       });
 
-          const handler = copilotRuntimeNodeHttpEndpoint({
-            endpoint: "/copilotkit",
-            runtime,
-            serviceAdapter,
-          });
+    //       const handler = copilotRuntimeNodeHttpEndpoint({
+    //         endpoint: "/copilotkit",
+    //         runtime,
+    //         serviceAdapter,
+    //       });
 
-          return handler.handle(c.req.raw, {});
-        },
-      }),
-    ],
+    //       return handler.handle(c.req.raw, {});
+    //     },
+    //   }),
+    // ],
   },
 });

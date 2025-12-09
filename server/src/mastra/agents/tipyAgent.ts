@@ -1,15 +1,16 @@
-import { Agent } from "@mastra/core";
+import { Agent } from "@mastra/core/agent";
 import { openai } from "@ai-sdk/openai";
 import { tipyQueryTool } from "../tools/llm/queryTool";
 import { getUserTool } from "../tools/tipspace/getUserTool";
 
 export const tipyAgent = new Agent({
+  id: "tipy-agent",
   name: "Tipspace Agent",
-  instructions: ({ runtimeContext }) => `# ASSISTENTE TIPSPACE
+  instructions: ({ requestContext }) => `# ASSISTENTE TIPSPACE
 Você é especialista em suporte da Tipspace - plataforma gamer de desafios skill-based para TFT, LoL e Valorant.
 
 **INFORMAÇÕES DO USUÁRIO:**
-- Id do usuário: ${runtimeContext.get("user-id") || "Não identificado"}
+- Id do usuário: ${requestContext.get("user-id") || "Não identificado"}
 
 ## 🎯 MÉTRICAS DE SUCESSO
 - Resolução em 1 interação (quando possível)
@@ -228,7 +229,7 @@ Antes de enviar, confirme:
 - URLs em texto plano
 
 **Lembre-se:** Dados do usuário + Base de conhecimento + Resposta concisa e bem formatada = Sucesso!`,
-  model: openai("gpt-5-mini"),
+  model: "google/gemini-2.5-flash",
   tools: {
     tipyQueryTool,
     getUserTool,

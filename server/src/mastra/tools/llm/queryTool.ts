@@ -3,7 +3,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { pgVector } from "../../storage";
 import { embed } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { ModelRouterEmbeddingModel } from "@mastra/core/llm";
 
 // Cache em memória com TTL de 10 minutos
 interface CacheEntry {
@@ -32,18 +32,15 @@ export const tipyQueryTool = createTool({
     topK: z
       .number()
       .optional()
-      .default(10)
-      .describe("Number of top results to retrieve (default: 10)"),
+      .default(5)
+      .describe("Number of top results to retrieve"),
     filter: z.record(z.any()).optional().describe("Filter for the query"),
   }),
   outputSchema: z.any(),
   execute: async (context) => {
-    let { queryText, topK = 10, filter } = context;
+    const { queryText, filter } = context;
 
-    // Enforce minimum topK of 10 to ensure sufficient results
-    if (topK < 10) {
-      topK = 10;
-    }
+    let topK = context.topK < 5 ? 5 : context.topK;
 
     // Gerar hash do contexto completo para usar como chave do cache
     // Ordenar chaves para garantir consistência
@@ -64,7 +61,7 @@ export const tipyQueryTool = createTool({
     try {
       // 1. Gerar embedding da query usando o mesmo modelo da ingestão
       const { embedding } = await embed({
-        model: openai.embedding("text-embedding-3-small"),
+        model: new ModelRouterEmbeddingModel("openai/text-embedding-3-small"),
         value: queryText,
       });
 

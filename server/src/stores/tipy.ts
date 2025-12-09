@@ -13,6 +13,7 @@ const ZENDESK_API_TOKEN = process.env.ZENDESK_API_TOKEN!;
 
 const pgVector = new PgVector({
   connectionString: process.env.POSTGRES_CONNECTION_STRING!,
+  id: "tipy",
 });
 
 // Initialize the vector store with error handling
@@ -138,13 +139,13 @@ for (const article of articles) {
 
     const { embeddings } = await embedMany({
       model: openai.embedding("text-embedding-3-small"),
-      values: chunks.map((chunk) => chunk.text),
+      values: chunks.map((chunk: any) => chunk.text),
     });
 
     await pgVector.upsert({
       indexName: "tipy",
       vectors: embeddings,
-      metadata: chunks.map((chunk) => ({
+      metadata: chunks.map((chunk: any) => ({
         text: chunk.text,
         source:
           article.html_url ||

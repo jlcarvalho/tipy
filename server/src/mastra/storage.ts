@@ -11,7 +11,7 @@ export const pgStorage = new PostgresStore({
   connectionString: process.env.POSTGRES_CONNECTION_STRING!,
 });
 
-// Initialize indices (helper function to be called at startup if needed, 
+// Initialize indices (helper function to be called at startup if needed,
 // or we can rely on index.ts executing this if we import the file)
 export const initVectorIndices = async () => {
   await pgVector.createIndex({
